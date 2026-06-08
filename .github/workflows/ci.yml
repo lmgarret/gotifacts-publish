@@ -26,6 +26,9 @@ jobs:
   integration:
     name: integration
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
     env:
       # gotifacts container settings. The base domain only affects the returned
       # site URL; publishing works regardless.
@@ -34,7 +37,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      # If the gotifacts package is private, uncomment to authenticate the pull:
+      # gotifacts' GHCR package is private; authenticate the pull.
       - uses: docker/login-action@v3
         with:
           registry: ghcr.io
