@@ -61,18 +61,23 @@ jobs:
           echo "GOTIFACTS_API_KEY=$key" >> "$GITHUB_ENV"
 
           # Run the server against the same volume so the key is valid.
+          # ADMIN_USERS/TRUSTED_PROXIES satisfy the "admins reachable" check so
+          # serve doesn't refuse to start (the ingest plane uses the API key).
           docker run -d --name gotifacts -p 8080:8080 \
             -e GOTIFACTS_BASE_DOMAIN="$GOTIFACTS_BASE_DOMAIN" \
             -e GOTIFACTS_DATA_DIR=/data \
+            -e GOTIFACTS_ADMIN_USERS=ci@example.com \
+            -e GOTIFACTS_TRUSTED_PROXIES=127.0.0.1/32 \
             -v gtf-data:/data \
             "$GOTIFACTS_IMAGE"
 
           for _ in $(seq 1 30); do
             if curl -fsS http://localhost:8080/ >/dev/null 2>&1; then
-              echo "gotifacts is up"; break
+              echo "gotifacts is up"; exit 0
             fi
             sleep 1
           done
+          echo "gotifacts did not become ready"; docker logs gotifacts; exit 1
 
       - name: Create a test site
         run: |
