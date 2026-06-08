@@ -69,6 +69,7 @@ jobs:
             -e GOTIFACTS_DATA_DIR=/data \
             -e GOTIFACTS_ADMIN_USERS=ci@example.com \
             -e GOTIFACTS_TRUSTED_PROXIES=127.0.0.1/32 \
+            -e TMPDIR=/data \
             -v gtf-data:/data \
             "$GOTIFACTS_IMAGE"
 
