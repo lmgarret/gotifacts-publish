@@ -1,0 +1,11 @@
+# Local test/publish artifacts
+resp.json
+*.tar.gz
+*.tgz
+index.html
+
+# OS / editor noise
+.DS_Store
+*.swp
+.idea/
+.vscode/

@@ -1,0 +1,34 @@
+# Example consumer workflow: build a site and publish it to gotifacts.
+# Copy into .github/workflows/ of your own repository.
+name: Publish site
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Build your static site however you like; here we just have a folder.
+      # - run: npm ci && npm run build   # -> ./dist with a top-level index.html
+
+      - id: gotifacts
+        uses: lmgarret/gotifacts-publish@v1
+        with:
+          # Store the host as a secret to keep it private in public repos.
+          url: ${{ secrets.GOTIFACTS_URL }}
+          api-key: ${{ secrets.GOTIFACTS_API_KEY }}
+          path: ./dist
+          slug: my-site
+          group: claude
+          title: My Site
+          tags: docs, demo
+
+      - name: Show the published URL
+        run: echo "Published to ${{ steps.gotifacts.outputs.url }}"

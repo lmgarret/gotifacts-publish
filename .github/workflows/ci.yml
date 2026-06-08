@@ -1,0 +1,97 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    name: lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: shellcheck
+        run: shellcheck scripts/publish.sh
+      - name: actionlint
+        uses: raven-actions/actionlint@v2
+
+  integration:
+    name: integration
+    runs-on: ubuntu-latest
+    env:
+      # gotifacts container settings. The base domain only affects the returned
+      # site URL; publishing works regardless.
+      GOTIFACTS_IMAGE: ghcr.io/lmgarret/gotifacts:edge
+      GOTIFACTS_BASE_DOMAIN: example.com
+    steps:
+      - uses: actions/checkout@v6
+
+      # If the gotifacts package is private, uncomment to authenticate the pull:
+      # - uses: docker/login-action@v3
+      #   with:
+      #     registry: ghcr.io
+      #     username: ${{ github.actor }}
+      #     password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Start gotifacts
+        run: |
+          docker volume create gtf-data
+          docker pull "$GOTIFACTS_IMAGE"
+
+          # Mint a publish-scoped key against the shared data volume.
+          key="$(docker run --rm \
+            -e GOTIFACTS_BASE_DOMAIN="$GOTIFACTS_BASE_DOMAIN" \
+            -e GOTIFACTS_DATA_DIR=/data \
+            -v gtf-data:/data \
+            "$GOTIFACTS_IMAGE" \
+            keys create --name ci --scope publish | grep -oE 'gtf_[A-Za-z0-9_-]+')"
+          test -n "$key"
+          echo "::add-mask::$key"
+          echo "GOTIFACTS_API_KEY=$key" >> "$GITHUB_ENV"
+
+          # Run the server against the same volume so the key is valid.
+          docker run -d --name gotifacts -p 8080:8080 \
+            -e GOTIFACTS_BASE_DOMAIN="$GOTIFACTS_BASE_DOMAIN" \
+            -e GOTIFACTS_DATA_DIR=/data \
+            -v gtf-data:/data \
+            "$GOTIFACTS_IMAGE"
+
+          for _ in $(seq 1 30); do
+            if curl -fsS http://localhost:8080/ >/dev/null 2>&1; then
+              echo "gotifacts is up"; break
+            fi
+            sleep 1
+          done
+
+      - name: Create a test site
+        run: |
+          printf '<!doctype html><meta charset="utf-8"><title>ci</title><h1>hello from CI</h1>' > index.html
+
+      - name: Publish via the action
+        id: publish
+        uses: ./
+        with:
+          url: http://localhost:8080
+          api-key: ${{ env.GOTIFACTS_API_KEY }}
+          path: index.html
+          slug: ci-test
+          group: ci
+          title: CI Test
+
+      - name: Assert the publish succeeded
+        run: |
+          test -n "${{ steps.publish.outputs.url }}" || { echo "no url output"; exit 1; }
+          test -n "${{ steps.publish.outputs.updated-at }}" || { echo "no updated-at output"; exit 1; }
+          echo "Published: ${{ steps.publish.outputs.url }}"
+
+      - name: gotifacts logs (on failure)
+        if: failure()
+        run: docker logs gotifacts || true

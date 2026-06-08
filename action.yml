@@ -1,0 +1,98 @@
+name: Publish to gotifacts
+description: >-
+  Publish a static site (single HTML file, a directory, or a prebuilt .tar.gz
+  bundle) to a self-hosted gotifacts instance and expose the resulting public URL.
+author: lmgarret
+branding:
+  icon: upload-cloud
+  color: blue
+
+inputs:
+  url:
+    description: >-
+      Base URL of the gotifacts instance, e.g. https://example.com. Pass it via
+      a secret (${{ secrets.GOTIFACTS_URL }}) to keep the host private in public
+      repos; the action masks it from the logs regardless of how it is supplied.
+    required: true
+  api-key:
+    description: >-
+      A publish-scoped gotifacts API key (looks like gtf_...). Always supply this
+      via a secret. Create one with `gotifacts keys create --name ci --scope publish`.
+    required: true
+  path:
+    description: >-
+      What to publish. A single .html file is uploaded as the site's index; a
+      directory is tar.gz'd and uploaded as a bundle (it must contain a top-level
+      index.html); a .tar.gz/.tgz file is uploaded as a bundle as-is.
+    required: true
+  slug:
+    description: Leaf site identifier, e.g. "my-report". Lowercase letters, digits and hyphens.
+    required: true
+  group:
+    description: >-
+      Optional group path (0-2 segments, e.g. "claude" or "claude/demos"). The
+      published URL is https://<slug>.<group-reversed>.<base-domain>.
+    required: false
+    default: ""
+  title:
+    description: Human-readable site title (recommended).
+    required: false
+    default: ""
+  description:
+    description: Short site description.
+    required: false
+    default: ""
+  tags:
+    description: Comma- or newline-separated list of tags.
+    required: false
+    default: ""
+  date:
+    description: Publish date (RFC 3339 / ISO 8601). Defaults server-side to now when empty.
+    required: false
+    default: ""
+  repo:
+    description: Source repository URL to associate with the site.
+    required: false
+    default: ""
+  preview:
+    description: Preview image URL shown in the portal instead of an iframe.
+    required: false
+    default: ""
+  hidden:
+    description: When "true", the site is excluded from portal listings.
+    required: false
+    default: "false"
+
+outputs:
+  url:
+    description: Public URL of the published site.
+    value: ${{ steps.publish.outputs.url }}
+  group:
+    description: Normalized group the site was published to.
+    value: ${{ steps.publish.outputs.group }}
+  slug:
+    description: Normalized slug the site was published to.
+    value: ${{ steps.publish.outputs.slug }}
+  updated-at:
+    description: Server timestamp of the publish.
+    value: ${{ steps.publish.outputs.updated-at }}
+
+runs:
+  using: composite
+  steps:
+    - id: publish
+      shell: bash
+      run: bash "$GITHUB_ACTION_PATH/scripts/publish.sh"
+      env:
+        GTF_URL: ${{ inputs.url }}
+        GTF_API_KEY: ${{ inputs.api-key }}
+        GTF_PATH: ${{ inputs.path }}
+        GTF_SLUG: ${{ inputs.slug }}
+        GTF_GROUP: ${{ inputs.group }}
+        GTF_TITLE: ${{ inputs.title }}
+        GTF_DESCRIPTION: ${{ inputs.description }}
+        GTF_TAGS: ${{ inputs.tags }}
+        GTF_DATE: ${{ inputs.date }}
+        GTF_REPO: ${{ inputs.repo }}
+        GTF_PREVIEW: ${{ inputs.preview }}
+        GTF_HIDDEN: ${{ inputs.hidden }}
