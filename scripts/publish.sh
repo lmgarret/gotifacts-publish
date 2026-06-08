@@ -65,23 +65,19 @@ jq -n \
 # --- Determine the content part ---------------------------------------------
 # Exactly one of `index` (single HTML) or `bundle` (.tar.gz with top-level
 # index.html) is sent.
-part_name=""
 part_arg=""
 
 if [ -d "$GTF_PATH" ]; then
   [ -f "$GTF_PATH/index.html" ] || die "directory '$GTF_PATH' has no top-level index.html"
   bundle="$work/site.tar.gz"
   tar -C "$GTF_PATH" -czf "$bundle" .
-  part_name="bundle"
   part_arg="bundle=@${bundle};type=application/gzip"
 elif [ -f "$GTF_PATH" ]; then
   case "$GTF_PATH" in
     *.tar.gz|*.tgz)
-      part_name="bundle"
       part_arg="bundle=@${GTF_PATH};type=application/gzip"
       ;;
     *)
-      part_name="index"
       part_arg="index=@${GTF_PATH};type=text/html"
       ;;
   esac
