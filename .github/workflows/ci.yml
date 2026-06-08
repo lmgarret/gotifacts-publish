@@ -30,10 +30,11 @@ jobs:
       contents: read
       packages: read
     env:
-      # gotifacts container settings. The base domain only affects the returned
-      # site URL; publishing works regardless.
+      # gotifacts routes by Host and the apex (management + ingest) plane is the
+      # base domain. Using "localhost" makes requests to localhost:8080 hit the
+      # apex, so the ingest API is reachable in CI (port is ignored when matching).
       GOTIFACTS_IMAGE: ghcr.io/lmgarret/gotifacts:edge
-      GOTIFACTS_BASE_DOMAIN: example.com
+      GOTIFACTS_BASE_DOMAIN: localhost
     steps:
       - uses: actions/checkout@v6
 
@@ -71,8 +72,10 @@ jobs:
             -v gtf-data:/data \
             "$GOTIFACTS_IMAGE"
 
+          # Any HTTP response (not just 2xx) means the server is accepting
+          # connections, so don't use curl -f here.
           for _ in $(seq 1 30); do
-            if curl -fsS http://localhost:8080/ >/dev/null 2>&1; then
+            if curl -sS -o /dev/null http://localhost:8080/; then
               echo "gotifacts is up"; exit 0
             fi
             sleep 1
