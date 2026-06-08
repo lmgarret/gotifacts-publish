@@ -11,8 +11,8 @@ inputs:
   url:
     description: >-
       Base URL of the gotifacts instance, e.g. https://example.com. Pass it via
-      a secret (${{ secrets.GOTIFACTS_URL }}) to keep the host private in public
-      repos; the action masks it from the logs regardless of how it is supplied.
+      a secret to keep the host private in public repos; the action masks it
+      from the logs regardless of how it is supplied.
     required: true
   api-key:
     description: >-

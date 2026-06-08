@@ -26,20 +26,24 @@ jobs:
   integration:
     name: integration
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
     env:
-      # gotifacts container settings. The base domain only affects the returned
-      # site URL; publishing works regardless.
+      # gotifacts routes by Host and the apex (management + ingest) plane is the
+      # base domain. Using "localhost" makes requests to localhost:8080 hit the
+      # apex, so the ingest API is reachable in CI (port is ignored when matching).
       GOTIFACTS_IMAGE: ghcr.io/lmgarret/gotifacts:edge
-      GOTIFACTS_BASE_DOMAIN: example.com
+      GOTIFACTS_BASE_DOMAIN: localhost
     steps:
       - uses: actions/checkout@v6
 
-      # If the gotifacts package is private, uncomment to authenticate the pull:
-      # - uses: docker/login-action@v3
-      #   with:
-      #     registry: ghcr.io
-      #     username: ${{ github.actor }}
-      #     password: ${{ secrets.GITHUB_TOKEN }}
+      # gotifacts' GHCR package is private; authenticate the pull.
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Start gotifacts
         run: |
@@ -58,18 +62,26 @@ jobs:
           echo "GOTIFACTS_API_KEY=$key" >> "$GITHUB_ENV"
 
           # Run the server against the same volume so the key is valid.
+          # ADMIN_USERS/TRUSTED_PROXIES satisfy the "admins reachable" check so
+          # serve doesn't refuse to start (the ingest plane uses the API key).
           docker run -d --name gotifacts -p 8080:8080 \
             -e GOTIFACTS_BASE_DOMAIN="$GOTIFACTS_BASE_DOMAIN" \
             -e GOTIFACTS_DATA_DIR=/data \
+            -e GOTIFACTS_ADMIN_USERS=ci@example.com \
+            -e GOTIFACTS_TRUSTED_PROXIES=127.0.0.1/32 \
+            -e TMPDIR=/data \
             -v gtf-data:/data \
             "$GOTIFACTS_IMAGE"
 
+          # Any HTTP response (not just 2xx) means the server is accepting
+          # connections, so don't use curl -f here.
           for _ in $(seq 1 30); do
-            if curl -fsS http://localhost:8080/ >/dev/null 2>&1; then
-              echo "gotifacts is up"; break
+            if curl -sS -o /dev/null http://localhost:8080/; then
+              echo "gotifacts is up"; exit 0
             fi
             sleep 1
           done
+          echo "gotifacts did not become ready"; docker logs gotifacts; exit 1
 
       - name: Create a test site
         run: |
