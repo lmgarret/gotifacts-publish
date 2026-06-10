@@ -104,6 +104,36 @@ jobs:
           test -n "${{ steps.publish.outputs.updated-at }}" || { echo "no updated-at output"; exit 1; }
           echo "Published: ${{ steps.publish.outputs.url }}"
 
+      - name: Unpublish via the action
+        id: unpublish
+        uses: ./
+        with:
+          command: unpublish
+          url: http://localhost:8080
+          api-key: ${{ env.GOTIFACTS_API_KEY }}
+          slug: ci-test
+          group: ci
+
+      - name: Assert the unpublish succeeded
+        run: |
+          test "${{ steps.unpublish.outputs.deleted }}" = "true" \
+            || { echo "expected deleted=true, got '${{ steps.unpublish.outputs.deleted }}'"; exit 1; }
+
+      - name: Unpublish again (DELETE is idempotent)
+        id: reunpublish
+        uses: ./
+        with:
+          command: unpublish
+          url: http://localhost:8080
+          api-key: ${{ env.GOTIFACTS_API_KEY }}
+          slug: ci-test
+          group: ci
+
+      - name: Assert the second unpublish is a no-op
+        run: |
+          test "${{ steps.reunpublish.outputs.deleted }}" = "false" \
+            || { echo "expected deleted=false on second unpublish, got '${{ steps.reunpublish.outputs.deleted }}'"; exit 1; }
+
       - name: gotifacts logs (on failure)
         if: failure()
         run: docker logs gotifacts || true

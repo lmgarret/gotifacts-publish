@@ -8,6 +8,13 @@ branding:
   color: blue
 
 inputs:
+  command:
+    description: >-
+      What to do: "publish" (default) uploads the site; "unpublish" deletes the
+      site identified by group+slug via DELETE /ingest/sites/{group}/{slug} using
+      the same publish-scoped key. When "unpublish", `path` is ignored.
+    required: false
+    default: publish
   url:
     description: >-
       Base URL of the gotifacts instance, e.g. https://example.com. Pass it via
@@ -21,10 +28,12 @@ inputs:
     required: true
   path:
     description: >-
-      What to publish. A single .html file is uploaded as the site's index; a
+      What to publish (required when command is "publish"; ignored for
+      "unpublish"). A single .html file is uploaded as the site's index; a
       directory is tar.gz'd and uploaded as a bundle (it must contain a top-level
       index.html); a .tar.gz/.tgz file is uploaded as a bundle as-is.
-    required: true
+    required: false
+    default: ""
   slug:
     description: Leaf site identifier, e.g. "my-report". Lowercase letters, digits and hyphens.
     required: true
@@ -65,17 +74,22 @@ inputs:
 
 outputs:
   url:
-    description: Public URL of the published site.
+    description: Public URL of the published site (empty for unpublish).
     value: ${{ steps.publish.outputs.url }}
   group:
-    description: Normalized group the site was published to.
+    description: Normalized group the site was published to / removed from.
     value: ${{ steps.publish.outputs.group }}
   slug:
-    description: Normalized slug the site was published to.
+    description: Normalized slug the site was published to / removed from.
     value: ${{ steps.publish.outputs.slug }}
   updated-at:
-    description: Server timestamp of the publish.
+    description: Server timestamp of the publish (empty for unpublish).
     value: ${{ steps.publish.outputs.updated-at }}
+  deleted:
+    description: >-
+      For unpublish, "true" if a site was removed, "false" if it was already
+      absent (HTTP 404). Empty for publish.
+    value: ${{ steps.publish.outputs.deleted }}
 
 runs:
   using: composite
@@ -84,6 +98,7 @@ runs:
       shell: bash
       run: bash "$GITHUB_ACTION_PATH/scripts/publish.sh"
       env:
+        GTF_COMMAND: ${{ inputs.command }}
         GTF_URL: ${{ inputs.url }}
         GTF_API_KEY: ${{ inputs.api-key }}
         GTF_PATH: ${{ inputs.path }}
