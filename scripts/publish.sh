@@ -44,8 +44,9 @@ work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
 
 # --- Unpublish --------------------------------------------------------------
-# Delete the site identified by group+slug via DELETE /ingest/sites/{group}/{slug}
-# using the same publish-scoped key. Idempotent: a 404 (already gone) is success.
+# Delete the site identified by group+slug via DELETE /ingest/sites/{group}/{slug}.
+# The key needs the "unpublish" capability on the group. Idempotent: a 404
+# (already gone) is success.
 if [ "$command" = "unpublish" ]; then
   group="${GTF_GROUP:-}"
   group="${group#/}"
@@ -76,8 +77,8 @@ if [ "$command" = "unpublish" ]; then
   else
     body="$(cat "$resp" 2>/dev/null || true)"
     case "$code" in
-      401) hint=" — check the api-key input (publish-scoped gtf_ token)." ;;
-      403) hint=" — the key is not permitted to manage this group." ;;
+      401) hint=" — check the api-key input (a gtf_ token)." ;;
+      403) hint=" — the key lacks the 'unpublish' capability on this group." ;;
       400) hint=" — invalid slug/group." ;;
       *)   hint="" ;;
     esac
@@ -163,8 +164,8 @@ code="$(
 if [ "$code" -lt 200 ] || [ "$code" -ge 300 ]; then
   body="$(cat "$resp" 2>/dev/null || true)"
   case "$code" in
-    401) hint=" — check the api-key input (publish-scoped gtf_ token)." ;;
-    403) hint=" — the key is not permitted to publish to this group." ;;
+    401) hint=" — check the api-key input (a gtf_ token)." ;;
+    403) hint=" — the key lacks the 'publish' capability on this group." ;;
     400) hint=" — invalid slug/group, too-deep path, or missing index.html." ;;
     *)   hint="" ;;
   esac

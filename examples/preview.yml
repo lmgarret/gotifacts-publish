@@ -1,6 +1,9 @@
 # Example consumer workflow: per-PR deploy previews on gotifacts.
 # Publishes a preview on PR open/update and removes it when the PR closes.
 # Copy into .github/workflows/ of your own repository.
+#
+# GOTIFACTS_API_KEY needs both capabilities on the previews group — no admin:
+#   gotifacts keys create --name ci --grant "previews:publish,unpublish"
 name: PR preview
 
 on:

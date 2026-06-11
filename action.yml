@@ -11,8 +11,9 @@ inputs:
   command:
     description: >-
       What to do: "publish" (default) uploads the site; "unpublish" deletes the
-      site identified by group+slug via DELETE /ingest/sites/{group}/{slug} using
-      the same publish-scoped key. When "unpublish", `path` is ignored.
+      site identified by group+slug via DELETE /ingest/sites/{group}/{slug}. The
+      key needs the "unpublish" capability on the group. When "unpublish", `path`
+      is ignored.
     required: false
     default: publish
   url:
@@ -23,8 +24,9 @@ inputs:
     required: true
   api-key:
     description: >-
-      A publish-scoped gotifacts API key (looks like gtf_...). Always supply this
-      via a secret. Create one with `gotifacts keys create --name ci --scope publish`.
+      A gotifacts API key (looks like gtf_...) with the "publish" capability
+      (add "unpublish" for cleanup). Always supply this via a secret. Create one
+      with `gotifacts keys create --name ci --grant "claude:publish,unpublish"`.
     required: true
   path:
     description: >-
