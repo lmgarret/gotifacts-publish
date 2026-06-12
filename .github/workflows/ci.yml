@@ -50,13 +50,15 @@ jobs:
           docker volume create gtf-data
           docker pull "$GOTIFACTS_IMAGE"
 
-          # Mint a publish-scoped key against the shared data volume.
+          # Mint a key that can publish AND unpublish the "ci" group, against the
+          # shared data volume. This exercises the granular-capability model:
+          # preview teardown no longer needs an admin key.
           key="$(docker run --rm \
             -e GOTIFACTS_BASE_DOMAIN="$GOTIFACTS_BASE_DOMAIN" \
             -e GOTIFACTS_DATA_DIR=/data \
             -v gtf-data:/data \
             "$GOTIFACTS_IMAGE" \
-            keys create --name ci --scope publish | grep -oE 'gtf_[A-Za-z0-9_-]+')"
+            keys create --name ci --grant "ci:publish,unpublish" | grep -oE 'gtf_[A-Za-z0-9_-]+')"
           test -n "$key"
           echo "::add-mask::$key"
           echo "GOTIFACTS_API_KEY=$key" >> "$GITHUB_ENV"
@@ -103,6 +105,36 @@ jobs:
           test -n "${{ steps.publish.outputs.url }}" || { echo "no url output"; exit 1; }
           test -n "${{ steps.publish.outputs.updated-at }}" || { echo "no updated-at output"; exit 1; }
           echo "Published: ${{ steps.publish.outputs.url }}"
+
+      - name: Unpublish via the action
+        id: unpublish
+        uses: ./
+        with:
+          command: unpublish
+          url: http://localhost:8080
+          api-key: ${{ env.GOTIFACTS_API_KEY }}
+          slug: ci-test
+          group: ci
+
+      - name: Assert the unpublish succeeded
+        run: |
+          test "${{ steps.unpublish.outputs.deleted }}" = "true" \
+            || { echo "expected deleted=true, got '${{ steps.unpublish.outputs.deleted }}'"; exit 1; }
+
+      - name: Unpublish again (DELETE is idempotent)
+        id: reunpublish
+        uses: ./
+        with:
+          command: unpublish
+          url: http://localhost:8080
+          api-key: ${{ env.GOTIFACTS_API_KEY }}
+          slug: ci-test
+          group: ci
+
+      - name: Assert the second unpublish is a no-op
+        run: |
+          test "${{ steps.reunpublish.outputs.deleted }}" = "false" \
+            || { echo "expected deleted=false on second unpublish, got '${{ steps.reunpublish.outputs.deleted }}'"; exit 1; }
 
       - name: gotifacts logs (on failure)
         if: failure()

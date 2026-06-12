@@ -12,11 +12,19 @@ die() {
   exit 1
 }
 
-# --- Required inputs --------------------------------------------------------
+# --- Required inputs (shared) -----------------------------------------------
+# `path` is required for publish only; it is enforced in the publish branch.
 : "${GTF_URL:?url is required}"
 : "${GTF_API_KEY:?api-key is required}"
-: "${GTF_PATH:?path is required}"
 : "${GTF_SLUG:?slug is required}"
+
+# --- Command ----------------------------------------------------------------
+command="$(printf '%s' "${GTF_COMMAND:-publish}" | tr '[:upper:]' '[:lower:]')"
+case "$command" in
+  ""|publish) command="publish" ;;
+  unpublish) ;;
+  *) die "unknown command '$GTF_COMMAND' (expected 'publish' or 'unpublish')" ;;
+esac
 
 # --- Mask secrets -----------------------------------------------------------
 # Mask the key and the host so they never leak into logs, even when the host is
@@ -31,9 +39,66 @@ echo "::add-mask::$GTF_URL"
 echo "::add-mask::$url"
 [ -n "$host" ] && echo "::add-mask::$host"
 
-# --- Build meta.json --------------------------------------------------------
+# --- Workspace --------------------------------------------------------------
 work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
+
+# --- Unpublish --------------------------------------------------------------
+# Delete the site identified by group+slug via DELETE /ingest/sites/{group}/{slug}.
+# The key needs the "unpublish" capability on the group. Idempotent: a 404
+# (already gone) is success.
+if [ "$command" = "unpublish" ]; then
+  group="${GTF_GROUP:-}"
+  group="${group#/}"
+  group="${group%/}"
+
+  if [ -n "$group" ]; then
+    endpoint="$url/ingest/sites/$group/$GTF_SLUG"
+  else
+    endpoint="$url/ingest/sites/$GTF_SLUG"
+  fi
+
+  resp="$work/resp.json"
+  code="$(
+    curl -sS \
+      -o "$resp" -w '%{http_code}' \
+      -X DELETE \
+      -H "Authorization: Bearer $GTF_API_KEY" \
+      "$endpoint"
+  )"
+
+  deleted="false"
+  if [ "$code" -ge 200 ] && [ "$code" -lt 300 ]; then
+    deleted="true"
+    echo "::notice title=Unpublished from gotifacts::removed ${group:+$group/}$GTF_SLUG"
+  elif [ "$code" -eq 404 ]; then
+    # Idempotent cleanup: the site is already gone, which is the desired state.
+    echo "::notice title=Nothing to unpublish::${group:+$group/}$GTF_SLUG was not found (HTTP 404)"
+  else
+    body="$(cat "$resp" 2>/dev/null || true)"
+    case "$code" in
+      401) hint=" — check the api-key input (a gtf_ token)." ;;
+      403) hint=" — the key lacks the 'unpublish' capability on this group." ;;
+      400) hint=" — invalid slug/group." ;;
+      *)   hint="" ;;
+    esac
+    die "unpublish failed (HTTP $code)$hint Response: $body"
+  fi
+
+  {
+    echo "url="
+    echo "group=$group"
+    echo "slug=$GTF_SLUG"
+    echo "updated-at="
+    echo "deleted=$deleted"
+  } >> "${GITHUB_OUTPUT:-/dev/stdout}"
+  exit 0
+fi
+
+# --- Publish ----------------------------------------------------------------
+: "${GTF_PATH:?path is required}"
+
+# --- Build meta.json --------------------------------------------------------
 meta="$work/meta.json"
 
 # Split tags on commas and newlines, trim whitespace, drop empties -> JSON array.
@@ -99,8 +164,8 @@ code="$(
 if [ "$code" -lt 200 ] || [ "$code" -ge 300 ]; then
   body="$(cat "$resp" 2>/dev/null || true)"
   case "$code" in
-    401) hint=" — check the api-key input (publish-scoped gtf_ token)." ;;
-    403) hint=" — the key is not permitted to publish to this group." ;;
+    401) hint=" — check the api-key input (a gtf_ token)." ;;
+    403) hint=" — the key lacks the 'publish' capability on this group." ;;
     400) hint=" — invalid slug/group, too-deep path, or missing index.html." ;;
     *)   hint="" ;;
   esac
@@ -120,6 +185,7 @@ out_updated="$(jq -r '.updated_at // empty' "$resp")"
   echo "group=$out_group"
   echo "slug=$out_slug"
   echo "updated-at=$out_updated"
+  echo "deleted="
 } >> "${GITHUB_OUTPUT:-/dev/stdout}"
 
 echo "::notice title=Published to gotifacts::$out_url"
