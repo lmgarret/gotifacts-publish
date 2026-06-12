@@ -50,13 +50,15 @@ jobs:
           docker volume create gtf-data
           docker pull "$GOTIFACTS_IMAGE"
 
-          # Mint a publish-scoped key against the shared data volume.
+          # Mint a key that can publish AND unpublish the "ci" group, against the
+          # shared data volume. This exercises the granular-capability model:
+          # preview teardown no longer needs an admin key.
           key="$(docker run --rm \
             -e GOTIFACTS_BASE_DOMAIN="$GOTIFACTS_BASE_DOMAIN" \
             -e GOTIFACTS_DATA_DIR=/data \
             -v gtf-data:/data \
             "$GOTIFACTS_IMAGE" \
-            keys create --name ci --scope publish | grep -oE 'gtf_[A-Za-z0-9_-]+')"
+            keys create --name ci --grant "ci:publish,unpublish" | grep -oE 'gtf_[A-Za-z0-9_-]+')"
           test -n "$key"
           echo "::add-mask::$key"
           echo "GOTIFACTS_API_KEY=$key" >> "$GITHUB_ENV"

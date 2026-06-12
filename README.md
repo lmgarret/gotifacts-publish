@@ -6,7 +6,7 @@ ingest API and exposes the resulting public URL.
 
 gotifacts is a small self-hosted service that hosts and serves static sites by
 host-based routing. This action wraps its `POST /ingest/sites` endpoint: give it
-a publish-scoped API key, the instance URL, and something to publish (a single
+an API key with the publish capability, the instance URL, and something to publish (a single
 HTML file, a directory, or a prebuilt `.tar.gz`), and it uploads the site. It also
 wraps `DELETE /ingest/sites/{group}/{slug}` so you can tear a site down again —
 see [Unpublishing / cleanup](#unpublishing--cleanup).
@@ -36,10 +36,14 @@ jobs:
       - run: echo "Published to ${{ steps.gotifacts.outputs.url }}"
 ```
 
-You need a **publish-scoped** API key from your gotifacts instance:
+You need an API key from your gotifacts instance holding the **`publish`**
+capability on your target group (add **`unpublish`** too if the same key tears
+down previews):
 
 ```sh
-gotifacts keys create --name ci --scope publish --group claude
+gotifacts keys create --name ci --grant "claude:publish"
+# or, for a key that also cleans up previews:
+gotifacts keys create --name ci --grant "previews:publish,unpublish"
 ```
 
 ## Inputs
@@ -48,7 +52,7 @@ gotifacts keys create --name ci --scope publish --group claude
 | ------------- | :------: | --------- | ----------- |
 | `command`     | no       | `publish` | `publish` uploads the site; `unpublish` deletes it (see [Unpublishing / cleanup](#unpublishing--cleanup)). |
 | `url`         | yes      |           | Base URL of the gotifacts instance, e.g. `https://example.com`. See [Keeping the host private](#keeping-the-host-private). |
-| `api-key`     | yes      |           | A publish-scoped API key (`gtf_...`). Always supply via a secret. Also used for `unpublish`. |
+| `api-key`     | yes      |           | A gotifacts API key (`gtf_...`) with the `publish` capability (and `unpublish` if used for cleanup). Always supply via a secret. |
 | `path`        | publish  |           | Required when `command: publish`; ignored for `unpublish`. What to publish: a single `.html` file → uploaded as the site index; a directory → tar.gz'd into a bundle (must contain a top-level `index.html`); a `.tar.gz`/`.tgz` → uploaded as a bundle as-is. |
 | `slug`        | yes      |         | Leaf site identifier, e.g. `my-report` (lowercase letters, digits, hyphens). |
 | `group`       | no       | `""`    | Group path, 0–2 segments (e.g. `claude` or `claude/demos`). |
@@ -135,9 +139,13 @@ See [`examples/publish.yml`](examples/publish.yml) for a complete workflow.
 ## Unpublishing / cleanup
 
 Set `command: unpublish` to remove a site. It calls
-`DELETE /ingest/sites/{group}/{slug}` with the **same publish-scoped key** — no
-extra credentials needed. Only `url`, `api-key`, and `slug` (plus the optional
-`group`) are used; `path` is ignored.
+`DELETE /ingest/sites/{group}/{slug}`, which requires a key holding the
+**`unpublish`** capability on the site's group (no admin rights needed). Only
+`url`, `api-key`, and `slug` (plus the optional `group`) are used; `path` is
+ignored.
+
+> Mint a CI key that can both deploy and tear down previews with:
+> `gotifacts keys create --name ci --grant "previews:publish,unpublish"`.
 
 ```yaml
 - uses: lmgarret/gotifacts-publish@v1
