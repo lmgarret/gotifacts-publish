@@ -17,7 +17,7 @@ jobs:
     name: lint
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: shellcheck
         run: shellcheck scripts/publish.sh
       - name: actionlint
@@ -36,10 +36,10 @@ jobs:
       GOTIFACTS_IMAGE: ghcr.io/lmgarret/gotifacts:edge
       GOTIFACTS_BASE_DOMAIN: localhost
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       # gotifacts' GHCR package is private; authenticate the pull.
-      - uses: docker/login-action@v3
+      - uses: docker/login-action@v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
