@@ -24,7 +24,7 @@ jobs:
     if: github.event.action != 'closed'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # Build your static site into ./dist (must contain a top-level index.html).
       # - run: npm ci && npm run build
@@ -42,7 +42,7 @@ jobs:
           hidden: "true"
 
       - name: Comment the preview URL
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             const url = ${{ toJSON(steps.gotifacts.outputs.url) }};
