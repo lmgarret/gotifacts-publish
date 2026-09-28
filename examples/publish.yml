@@ -13,7 +13,7 @@ jobs:
   publish:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # Build your static site however you like; here we just have a folder.
       # - run: npm ci && npm run build   # -> ./dist with a top-level index.html
